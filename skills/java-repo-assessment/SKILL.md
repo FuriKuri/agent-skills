@@ -7,21 +7,21 @@ description: "Comprehensive assessment and quality analysis of Java repositories
 
 Comprehensive quality and health report for Java projects. Combines **established tooling** for hard metrics with **Git history forensics** for behavioral insights using open-source tools.
 
-## Core Principle: Keine POM-Änderungen
+## Core Principle: No POM Modifications
 
-**Die pom.xml des Projekts wird NIEMALS verändert.** Alle Maven-Plugins werden über vollqualifizierte GAV-Koordinaten aufgerufen:
+**The project's pom.xml is NEVER modified.** All Maven plugins are invoked via fully-qualified GAV coordinates:
 
 ```bash
 mvn groupId:artifactId:version:goal -Dproperty=value
 ```
 
-Maven löst das Plugin automatisch aus Maven Central auf — ohne dass es in der pom.xml deklariert sein muss. Damit kann die Analyse auf jedes beliebige Maven-Projekt angewendet werden.
+Maven automatically resolves the plugin from Maven Central — no declaration in pom.xml required. This allows the analysis to be applied to any Maven project.
 
-## Tool-Referenz: Vollqualifizierte Maven-Kommandos
+## Tool Reference: Fully-Qualified Maven Commands
 
-### PMD (Source Code Analyse + Copy-Paste Detection)
+### PMD (Source Code Analysis + Copy-Paste Detection)
 ```bash
-# PMD mit bestpractices, design, errorprone, performance Rulesets
+# PMD with bestpractices, design, errorprone, performance rulesets
 mvn org.apache.maven.plugins:maven-pmd-plugin:3.28.0:pmd \
   -Dpmd.rulesets=category/java/bestpractices.xml,category/java/design.xml,category/java/errorprone.xml,category/java/performance.xml
 
@@ -30,12 +30,12 @@ mvn org.apache.maven.plugins:maven-pmd-plugin:3.28.0:cpd -Dpmd.minimumTokens=100
 ```
 Output: `target/pmd.xml`, `target/cpd.xml`
 
-### SpotBugs (Bytecode-Analyse, Bug Patterns)
+### SpotBugs (Bytecode Analysis, Bug Patterns)
 ```bash
-# Voraussetzung: Code muss kompiliert sein!
+# Prerequisite: code must be compiled!
 mvn compile -q
 
-# SpotBugs mit maximalem Effort
+# SpotBugs with maximum effort
 mvn com.github.spotbugs:spotbugs-maven-plugin:4.9.8.2:spotbugs \
   -Dspotbugs.effort=Max -Dspotbugs.threshold=Low
 ```
@@ -55,24 +55,24 @@ mvn org.codehaus.mojo:versions-maven-plugin:2.18.0:display-plugin-updates
 mvn org.apache.maven.plugins:maven-dependency-plugin:3.8.1:tree
 ```
 
-### OWASP Dependency-Check (CVE-Scan)
+### OWASP Dependency-Check (CVE Scan)
 ```bash
 mvn org.owasp:dependency-check-maven:11.1.1:check
 ```
 Output: `target/dependency-check-report.html`, `target/dependency-check-report.xml`
-Hinweis: Erster Lauf lädt NVD-Datenbank (~300MB).
+Note: First run downloads the NVD database (~300MB).
 
-### JaCoCo (Test Coverage) — Sonderfall
+### JaCoCo (Test Coverage) — Special Case
 
-JaCoCo braucht einen Agent zur Instrumentierung. Drei Strategien:
+JaCoCo requires an agent for instrumentation. Three strategies:
 
-**1. Projekt hat JaCoCo bereits konfiguriert (prüfe pom.xml):**
+**1. Project already has JaCoCo configured (check pom.xml):**
 ```bash
 mvn test -q
 mvn org.jacoco:jacoco-maven-plugin:0.8.12:report
 ```
 
-**2. Agent manuell anhängen (ohne POM-Änderung):**
+**2. Attach agent manually (without POM modification):**
 ```bash
 mvn org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
   -Dartifact=org.jacoco:org.jacoco.agent:0.8.12:jar:runtime \
@@ -83,34 +83,34 @@ mvn test -DargLine="-javaagent:/tmp/jacoco/org.jacoco.agent-0.8.12-runtime.jar=d
 mvn org.jacoco:jacoco-maven-plugin:0.8.12:report -Djacoco.dataFile=target/jacoco.exec
 ```
 
-**3. Kein Coverage verfügbar:** Überspringen und im Report vermerken.
+**3. No coverage available:** Skip and note in the report.
 
-### Lines of Code (ohne Maven)
+### Lines of Code (without Maven)
 ```bash
-# Fallback wenn cloc/scc nicht installiert
+# Fallback if cloc/scc are not installed
 find src -name '*.java' | xargs wc -l | sort -nr | head -50
 find src -name '*.java' | wc -l
 find src/test -name '*.java' | xargs wc -l 2>/dev/null | tail -1
 ```
 
-### ArchUnit (Architektur-Analyse auf Bytecode-Ebene)
+### ArchUnit (Bytecode-Level Architecture Analysis)
 
-Analysiert kompilierten Bytecode — präziser als Import-Analyse im Source Code. Besonders wertvoll wenn JDepend/andere Architektur-Plugins nicht im Projekt konfiguriert sind. Das JBang-Script `ArchUnitAnalysis.java` liegt im selben Verzeichnis wie diese SKILL.md.
+Analyzes compiled bytecode — more precise than import analysis in source code. Especially valuable when JDepend or other architecture plugins are not configured in the project. The JBang script `ArchUnitAnalysis.java` is located in the same directory as this SKILL.md.
 
-**Voraussetzung:** Projekt muss kompiliert sein (`mvn compile -q`).
+**Prerequisite:** Project must be compiled (`mvn compile -q`).
 
-**Variante 1: Mit JBang (bevorzugt)**
+**Option 1: With JBang (preferred)**
 ```bash
-jbang --version 2>/dev/null || echo "JBang nicht gefunden — https://www.jbang.dev/download/"
+jbang --version 2>/dev/null || echo "JBang not found — https://www.jbang.dev/download/"
 
 jbang <skill-dir>/ArchUnitAnalysis.java target/classes
-# Mit explizitem Base-Package:
+# With explicit base package:
 jbang <skill-dir>/ArchUnitAnalysis.java target/classes com.example.myapp
 ```
 
-**Variante 2: Ohne JBang (nur Maven + javac)**
+**Option 2: Without JBang (Maven + javac only)**
 ```bash
-# Dependencies via Maven herunterladen (GAV, kein POM nötig)
+# Download dependencies via Maven (GAV, no POM required)
 ARCHUNIT_DEPS=/tmp/archunit-deps && mkdir -p $ARCHUNIT_DEPS
 mvn -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
   -Dartifact=com.tngtech.archunit:archunit:1.4.1 -DoutputDirectory=$ARCHUNIT_DEPS
@@ -119,75 +119,75 @@ mvn -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
 mvn -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
   -Dartifact=org.slf4j:slf4j-nop:2.0.13 -DoutputDirectory=$ARCHUNIT_DEPS
 
-# Kompilieren und ausführen
+# Compile and run
 javac -cp "$ARCHUNIT_DEPS/*" <skill-dir>/ArchUnitAnalysis.java -d /tmp/archunit-out
 java -cp "$ARCHUNIT_DEPS/*:/tmp/archunit-out" ArchUnitAnalysis target/classes
 ```
-Hinweis: Die `///usr/bin/env`- und `//DEPS`-Zeilen sind für `javac` reguläre Kommentare — dasselbe File funktioniert mit beiden Varianten.
+Note: The `///usr/bin/env` and `//DEPS` lines are regular comments for `javac` — the same file works with both options.
 
-**Multi-Module:** Pro Modul separat ausführen (`<modul>/target/classes`).
+**Multi-module:** Run separately per module (`<module>/target/classes`).
 
-**Liefert:**
-- Robert C. Martin Metrics (Ca, Ce, I, A, D) pro Komponente + Zone-Analyse
-- Lakos Metrics (CCD, ACD, RACD, NCCD) — systemweite Kopplung
-- Zyklenerkennung auf Package-Ebene (Bytecode-basiert)
-- Layer-Violation-Check (Presentation → Service → Persistence)
-- Modul-Abhängigkeitsgraph
+**Provides:**
+- Robert C. Martin Metrics (Ca, Ce, I, A, D) per component + zone analysis
+- Lakos Metrics (CCD, ACD, RACD, NCCD) — system-wide coupling
+- Package-level cycle detection (bytecode-based)
+- Layer violation check (Presentation → Service → Persistence)
+- Module dependency graph
 
 ## Analysis Workflow
 
 ### Phase 1: Project Discovery
-1. Build-System: Maven (`pom.xml`) oder Gradle (`build.gradle`)?
-2. Java-Version (aus `maven.compiler.source`/`target` oder `java.version`)
-3. Modulstruktur (Multi-Module? Welche Module?)
+1. Build system: Maven (`pom.xml`) or Gradle (`build.gradle`)?
+2. Java version (from `maven.compiler.source`/`target` or `java.version`)
+3. Module structure (multi-module? Which modules?)
 4. Framework(s): Spring Boot, Quarkus, Jakarta EE, etc.
-5. Bereits konfigurierte Plugins? (PMD, SpotBugs, Checkstyle, JaCoCo in pom.xml)
-6. Bei Gradle: GAV-Kommandos funktionieren NICHT → siehe Gradle-Fallback am Ende
+5. Already configured plugins? (PMD, SpotBugs, Checkstyle, JaCoCo in pom.xml)
+6. For Gradle: GAV commands do NOT work → see Gradle Fallback at the end
 
 ### Phase 2: Compile & Tool Execution
 ```bash
 mvn compile -q
 ```
-Dann alle Tools aus der Tool-Referenz oben nacheinander ausführen. Bei Multi-Module-Projekten liegen Reports im jeweiligen `target/`-Verzeichnis.
+Then execute all tools from the Tool Reference above sequentially. For multi-module projects, reports are located in the respective `target/` directory.
 
-### Phase 3: Ergebnisse der Statischen Analyse
-Parse die XML-Reports. Nicht als rohe Liste zusammenfassen, sondern:
-- Gruppiere nach Kategorie und Schweregrad
-- Fokus auf Top-20 kritischste Findings
-- Jedes Finding mit Datei und Zeilennummer
+### Phase 3: Static Analysis Results
+Parse the XML reports. Do not summarize as a raw list, instead:
+- Group by category and severity
+- Focus on top 20 most critical findings
+- Each finding with file and line number
 
 ### Phase 4: Architecture Metrics
 
-**Bevorzugt: ArchUnit-Script** (siehe Tool-Referenz oben). Falls JBang verfügbar, `ArchUnitAnalysis.java` ausführen. Das Script liefert Martin Metrics, Lakos Metrics, Zyklen, Layer-Violations und Dependency-Graph direkt aus Bytecode — **kein Plugin im Projekt nötig**.
+**Preferred: ArchUnit script** (see Tool Reference above). If JBang is available, run `ArchUnitAnalysis.java`. The script provides Martin Metrics, Lakos Metrics, cycles, layer violations, and dependency graph directly from bytecode — **no plugin in the project required**.
 
-**Fallback (ohne JBang):** Import-Analyse direkt aus Source Code für die Martin Metrics.
+**Fallback (without JBang):** Import analysis directly from source code for the Martin Metrics.
 
-**Package Dependency Metrics** (Martin) pro signifikantem Package:
+**Package Dependency Metrics** (Martin) per significant package:
 
 | Metric | Formula | Meaning |
 |--------|---------|---------|
-| **Ca** (Afferent Coupling) | Incoming deps | Verantwortung |
-| **Ce** (Efferent Coupling) | Outgoing deps | Abhängigkeit |
-| **I** (Instability) | Ce / (Ca + Ce) | 0=stabil, 1=instabil |
-| **A** (Abstractness) | abstracts / total | Abstraktionsgrad |
+| **Ca** (Afferent Coupling) | Incoming deps | Responsibility |
+| **Ce** (Efferent Coupling) | Outgoing deps | Dependency |
+| **I** (Instability) | Ce / (Ca + Ce) | 0=stable, 1=unstable |
+| **A** (Abstractness) | abstracts / total | Abstraction level |
 | **D** (Distance) | \|A + I - 1\| | Ideal = 0 |
 
-Identifiziere: **Zone of Pain** (low I, low A) und **Zone of Uselessness** (high I, high A).
+Identify: **Zone of Pain** (low I, low A) and **Zone of Uselessness** (high I, high A).
 
-**Lakos Metrics** (nur via ArchUnit, systemweite Kopplung):
+**Lakos Metrics** (ArchUnit only, system-wide coupling):
 
 | Metric | Meaning |
 |--------|---------|
-| **CCD** | Cumulative Component Dependency — Summe aller transitiven Abhängigkeiten |
-| **ACD** | Average Component Dependency — CCD / Anzahl Komponenten |
-| **RACD** | Relative ACD — normalisiert auf 0-1 |
-| **NCCD** | Normalized CCD — Vergleich mit balanciertem Baum. >1.0 = übermäßige Kopplung |
+| **CCD** | Cumulative Component Dependency — sum of all transitive dependencies |
+| **ACD** | Average Component Dependency — CCD / number of components |
+| **RACD** | Relative ACD — normalized to 0-1 |
+| **NCCD** | Normalized CCD — comparison with balanced tree. >1.0 = excessive coupling |
 
-**Weitere Architektur-Checks (immer manuell, unabhängig von ArchUnit):**
-- LCOM4 für Klassen > 10 Methoden
-- Stable Dependencies Principle: instabile Packages sollten nur von stabileren abhängen
-- Schichtverletzungen: werden von ArchUnit automatisch geprüft; ohne ArchUnit manuell prüfen (Controller→Repository direkt, Domain→Infrastructure)
-- Zirkuläre Package-Abhängigkeiten: werden von ArchUnit automatisch geprüft; ohne ArchUnit Graph aus Imports aufbauen
+**Additional architecture checks (always manual, independent of ArchUnit):**
+- LCOM4 for classes with > 10 methods
+- Stable Dependencies Principle: unstable packages should only depend on more stable ones
+- Layer violations: automatically checked by ArchUnit; without ArchUnit check manually (Controller→Repository direct, Domain→Infrastructure)
+- Circular package dependencies: automatically checked by ArchUnit; without ArchUnit build graph from imports
 
 ### Phase 5: Git History Forensics
 
@@ -197,18 +197,18 @@ git log --format=format: --name-only --since=12.month \
   | grep '\.java$' | grep -v '^$' \
   | sort | uniq -c | sort -nr | head -50
 ```
-Kombiniere mit Dateigröße oder PMD-Findings zur Churn×Complexity-Matrix.
+Combine with file size or PMD findings for a Churn×Complexity matrix.
 
 #### 5.2 Knowledge Distribution & Bus Factor
 ```bash
-# Pro-Datei Ownership
+# Per-file ownership
 for f in $(git log --format=format: --name-only --since=12.month \
   | grep '\.java$' | grep -v '^$' | sort -u); do
   echo "=== $f ==="
   git log --format='%aN' --since=12.month -- "$f" | sort | uniq -c | sort -nr | head -3
 done
 ```
-**Höchste Risikostufe**: Hotspot + Bus Factor 1.
+**Highest risk level**: Hotspot + Bus Factor 1.
 
 #### 5.3 Temporal Coupling
 ```bash
@@ -217,7 +217,7 @@ git log --format='---' --name-only --since=12.month \
   | awk 'BEGIN{RS="---"} NF>1 {for(i=1;i<=NF;i++) for(j=i+1;j<=NF;j++) print $i " <-> " $j}' \
   | sort | uniq -c | sort -nr | head -30
 ```
-Cross-Module Coupling = starkes Architekturproblem-Signal.
+Cross-module coupling = strong architecture problem signal.
 
 #### 5.4 Developer Congestion
 ```bash
@@ -238,64 +238,64 @@ done | sort
 
 ### Phase 6: Performance Anti-Patterns
 
-Pattern-Erkennung im Source Code:
-- N+1: DB/API-Calls in `for`/`while`-Schleifen
-- `DriverManager.getConnection()` statt Connection Pool
-- `Thread.sleep()` in Request-Handlern
-- String `+` in Loops statt `StringBuilder`
-- `findAll()` ohne Limits, fehlende Pagination
-- `Pattern.compile()` in Loops statt als `static final`
-- Eager Loading in JPA (`FetchType.EAGER` oder fehlende Lazy-Konfiguration)
+Pattern detection in source code:
+- N+1: DB/API calls inside `for`/`while` loops
+- `DriverManager.getConnection()` instead of connection pool
+- `Thread.sleep()` in request handlers
+- String `+` in loops instead of `StringBuilder`
+- `findAll()` without limits, missing pagination
+- `Pattern.compile()` in loops instead of `static final`
+- Eager loading in JPA (`FetchType.EAGER` or missing lazy configuration)
 
 ### Phase 7: Test Quality
-- Test-zu-Code Ratio (Lines Test / Lines Production)
-- Testarten zählen: `@Test`, `@SpringBootTest`, `@Testcontainers`, `@DataJpaTest`
-- Hotspot-Dateien ohne Coverage = höchstes Risiko
-- Test-Smells: `Thread.sleep()`, leere Assertions, `@Disabled` ohne Grund
+- Test-to-code ratio (lines test / lines production)
+- Count test types: `@Test`, `@SpringBootTest`, `@Testcontainers`, `@DataJpaTest`
+- Hotspot files without coverage = highest risk
+- Test smells: `Thread.sleep()`, empty assertions, `@Disabled` without reason
 
-## Report-Struktur
+## Report Structure
 
 ```
 # Repository Health Assessment: [Project Name]
 ## Executive Summary
-## 1. Projekt-Überblick
-## 2. Quantitative Metriken
-## 3. Statische Analyse
-## 4. Architektur (Stability, Kopplung, Kohäsion, Zyklen, Schichtverletzungen)
-## 5. Git-Forensik (Hotspots, Bus Factor, Temporal Coupling, Congestion)
+## 1. Project Overview
+## 2. Quantitative Metrics
+## 3. Static Analysis
+## 4. Architecture (Stability, Coupling, Cohesion, Cycles, Layer Violations)
+## 5. Git Forensics (Hotspots, Bus Factor, Temporal Coupling, Congestion)
 ## 6. Performance Anti-Patterns
-## 7. Test-Qualität & Coverage
+## 7. Test Quality & Coverage
 ## 8. Dependency Health
-## 9. Scoring-Matrix (1-5 pro Kategorie)
-## 10. Handlungsempfehlungen (Kritisch → Quick Wins → Strategisch)
+## 9. Scoring Matrix (1-5 per category)
+## 10. Recommendations (Critical → Quick Wins → Strategic)
 ```
 
-| Score | Bedeutung |
-|-------|-----------|
-| 5 | Exzellent |
-| 4 | Gut — kleinere Issues |
-| 3 | Akzeptabel — sollte adressiert werden |
-| 2 | Bedenklich — signifikante Issues |
-| 1 | Kritisch — sofortiges Handeln nötig |
+| Score | Meaning |
+|-------|---------|
+| 5 | Excellent |
+| 4 | Good — minor issues |
+| 3 | Acceptable — should be addressed |
+| 2 | Concerning — significant issues |
+| 1 | Critical — immediate action required |
 
-## Prinzipien
+## Principles
 
-1. **pom.xml NICHT verändern** — alles via GAV-Koordinaten
-2. **Tools first** — erst messen, dann urteilen
-3. **Datei + Zeile** bei jedem Finding
-4. **Dimensionen kombinieren** — SpotBugs-Bug + Hotspot + Bus Factor 1 = höchste Priorität
-5. **Priorisieren** — Top-20% die 80% der Probleme verursachen
-6. **Bestehende Config respektieren** — im Report erwähnen falls Projekt eigene Rulesets hat
+1. **Do NOT modify pom.xml** — everything via GAV coordinates
+2. **Tools first** — measure first, then judge
+3. **File + line** for every finding
+4. **Combine dimensions** — SpotBugs bug + hotspot + bus factor 1 = highest priority
+5. **Prioritize** — top 20% that cause 80% of the problems
+6. **Respect existing config** — mention in report if project has its own rulesets
 
-## Gradle-Fallback
+## Gradle Fallback
 
-Bei Gradle-Projekten funktionieren die GAV-Kommandos nicht. Alternativen:
+For Gradle projects, GAV commands do not work. Alternatives:
 ```bash
 ./gradlew compileJava
-./gradlew pmdMain          # falls Plugin konfiguriert
-./gradlew spotbugsMain     # falls Plugin konfiguriert
-./gradlew checkstyleMain   # falls Plugin konfiguriert
+./gradlew pmdMain          # if plugin is configured
+./gradlew spotbugsMain     # if plugin is configured
+./gradlew checkstyleMain   # if plugin is configured
 ./gradlew test jacocoTestReport
-./gradlew dependencyUpdates  # benötigt ben-manes versions Plugin
+./gradlew dependencyUpdates  # requires ben-manes versions plugin
 ```
-Falls Plugins nicht konfiguriert: CLI-Versionen der Tools nutzen oder User darauf hinweisen.
+If plugins are not configured: use CLI versions of the tools or inform the user.
