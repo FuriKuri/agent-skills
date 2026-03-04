@@ -5,7 +5,7 @@ description: "Comprehensive assessment and quality analysis of Java repositories
 
 # Java Repository Assessment Skill
 
-Comprehensive quality and health report for Java projects. Combines **established tooling** for hard metrics with **Git history forensics** for behavioral insights — similar to CodeScene, but with open-source tools.
+Comprehensive quality and health report for Java projects. Combines **established tooling** for hard metrics with **Git history forensics** for behavioral insights using open-source tools.
 
 ## Core Principle: Keine POM-Änderungen
 
