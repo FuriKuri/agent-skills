@@ -1,24 +1,24 @@
 # Agent Skills Collection
 
-Dieses Repository ist eine Sammlung von wiederverwendbaren Agent Skills für Claude Code.
+This repository is a collection of reusable agent skills for Claude Code.
 
-## Repo-Struktur
+## Repo Structure
 
 ```
 skills/
   <skill-name>/
-    SKILL.md          # Skill-Definition (Frontmatter + Anweisungen)
+    SKILL.md          # Skill definition (frontmatter + instructions)
 ```
 
-Jeder Skill liegt in einem eigenen Verzeichnis unter `skills/`. Die Datei `SKILL.md` enthält YAML-Frontmatter (`name`, `description`) gefolgt von den Skill-Anweisungen.
+Each skill resides in its own directory under `skills/`. The `SKILL.md` file contains YAML frontmatter (`name`, `description`) followed by the skill instructions.
 
-## Konventionen
+## Conventions
 
-- **Sprache**: Skills können auf Deutsch oder Englisch verfasst sein
-- **SKILL.md Frontmatter**: Jeder Skill braucht `name` und `description` im YAML-Frontmatter
-- **Keine externen Abhängigkeiten**: Skills sollen eigenständig funktionieren und nur auf Tools zugreifen, die Claude Code nativ bereitstellt
-- **Verzeichnisname = Skill-Name**: Der Ordnername unter `skills/` entspricht dem Skill-Identifier
+- **Language**: Skills are written in English
+- **SKILL.md Frontmatter**: Each skill requires `name` and `description` in the YAML frontmatter
+- **No external dependencies**: Skills should work standalone and only use tools natively provided by Claude Code
+- **Directory name = Skill name**: The folder name under `skills/` corresponds to the skill identifier
 
-## Vorhandene Skills
+## Existing Skills
 
-- `java-repo-assessment` — Umfassende Qualitätsanalyse von Java-Repositories (statische Analyse, Architekturmetriken, Git-Forensik)
+- `java-repo-assessment` — Comprehensive quality analysis of Java repositories (static analysis, architecture metrics, Git forensics)
