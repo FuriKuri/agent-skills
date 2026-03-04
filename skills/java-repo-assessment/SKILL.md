@@ -93,6 +93,47 @@ find src -name '*.java' | wc -l
 find src/test -name '*.java' | xargs wc -l 2>/dev/null | tail -1
 ```
 
+### ArchUnit (Architektur-Analyse auf Bytecode-Ebene)
+
+Analysiert kompilierten Bytecode — präziser als Import-Analyse im Source Code. Besonders wertvoll wenn JDepend/andere Architektur-Plugins nicht im Projekt konfiguriert sind. Das JBang-Script `ArchUnitAnalysis.java` liegt im selben Verzeichnis wie diese SKILL.md.
+
+**Voraussetzung:** Projekt muss kompiliert sein (`mvn compile -q`).
+
+**Variante 1: Mit JBang (bevorzugt)**
+```bash
+jbang --version 2>/dev/null || echo "JBang nicht gefunden — https://www.jbang.dev/download/"
+
+jbang <skill-dir>/ArchUnitAnalysis.java target/classes
+# Mit explizitem Base-Package:
+jbang <skill-dir>/ArchUnitAnalysis.java target/classes com.example.myapp
+```
+
+**Variante 2: Ohne JBang (nur Maven + javac)**
+```bash
+# Dependencies via Maven herunterladen (GAV, kein POM nötig)
+ARCHUNIT_DEPS=/tmp/archunit-deps && mkdir -p $ARCHUNIT_DEPS
+mvn -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
+  -Dartifact=com.tngtech.archunit:archunit:1.4.1 -DoutputDirectory=$ARCHUNIT_DEPS
+mvn -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
+  -Dartifact=org.slf4j:slf4j-api:2.0.13 -DoutputDirectory=$ARCHUNIT_DEPS
+mvn -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
+  -Dartifact=org.slf4j:slf4j-nop:2.0.13 -DoutputDirectory=$ARCHUNIT_DEPS
+
+# Kompilieren und ausführen
+javac -cp "$ARCHUNIT_DEPS/*" <skill-dir>/ArchUnitAnalysis.java -d /tmp/archunit-out
+java -cp "$ARCHUNIT_DEPS/*:/tmp/archunit-out" ArchUnitAnalysis target/classes
+```
+Hinweis: Die `///usr/bin/env`- und `//DEPS`-Zeilen sind für `javac` reguläre Kommentare — dasselbe File funktioniert mit beiden Varianten.
+
+**Multi-Module:** Pro Modul separat ausführen (`<modul>/target/classes`).
+
+**Liefert:**
+- Robert C. Martin Metrics (Ca, Ce, I, A, D) pro Komponente + Zone-Analyse
+- Lakos Metrics (CCD, ACD, RACD, NCCD) — systemweite Kopplung
+- Zyklenerkennung auf Package-Ebene (Bytecode-basiert)
+- Layer-Violation-Check (Presentation → Service → Persistence)
+- Modul-Abhängigkeitsgraph
+
 ## Analysis Workflow
 
 ### Phase 1: Project Discovery
@@ -117,9 +158,11 @@ Parse die XML-Reports. Nicht als rohe Liste zusammenfassen, sondern:
 
 ### Phase 4: Architecture Metrics
 
-Hier kein Maven-Plugin — **Import-Analyse direkt aus Source Code**.
+**Bevorzugt: ArchUnit-Script** (siehe Tool-Referenz oben). Falls JBang verfügbar, `ArchUnitAnalysis.java` ausführen. Das Script liefert Martin Metrics, Lakos Metrics, Zyklen, Layer-Violations und Dependency-Graph direkt aus Bytecode — **kein Plugin im Projekt nötig**.
 
-**Package Dependency Metrics** pro signifikantem Package:
+**Fallback (ohne JBang):** Import-Analyse direkt aus Source Code für die Martin Metrics.
+
+**Package Dependency Metrics** (Martin) pro signifikantem Package:
 
 | Metric | Formula | Meaning |
 |--------|---------|---------|
@@ -131,11 +174,20 @@ Hier kein Maven-Plugin — **Import-Analyse direkt aus Source Code**.
 
 Identifiziere: **Zone of Pain** (low I, low A) und **Zone of Uselessness** (high I, high A).
 
-**Weitere Architektur-Checks:**
-- Zirkuläre Package-Abhängigkeiten (Graph aus Imports aufbauen)
+**Lakos Metrics** (nur via ArchUnit, systemweite Kopplung):
+
+| Metric | Meaning |
+|--------|---------|
+| **CCD** | Cumulative Component Dependency — Summe aller transitiven Abhängigkeiten |
+| **ACD** | Average Component Dependency — CCD / Anzahl Komponenten |
+| **RACD** | Relative ACD — normalisiert auf 0-1 |
+| **NCCD** | Normalized CCD — Vergleich mit balanciertem Baum. >1.0 = übermäßige Kopplung |
+
+**Weitere Architektur-Checks (immer manuell, unabhängig von ArchUnit):**
 - LCOM4 für Klassen > 10 Methoden
-- Schichtverletzungen (Controller→Repository direkt, Domain→Infrastructure)
 - Stable Dependencies Principle: instabile Packages sollten nur von stabileren abhängen
+- Schichtverletzungen: werden von ArchUnit automatisch geprüft; ohne ArchUnit manuell prüfen (Controller→Repository direkt, Domain→Infrastructure)
+- Zirkuläre Package-Abhängigkeiten: werden von ArchUnit automatisch geprüft; ohne ArchUnit Graph aus Imports aufbauen
 
 ### Phase 5: Git History Forensics
 
