@@ -278,6 +278,37 @@ Pattern detection in source code:
 | 2 | Concerning — significant issues |
 | 1 | Critical — immediate action required |
 
+## Handling Skipped Analyses
+
+When an analysis step cannot be performed, the report **MUST** document this transparently. Never silently omit a section — the reader must always understand what was analyzed and what was not.
+
+**For each skipped analysis, include in the corresponding report section:**
+
+```
+> ⚠️ **Not analyzed:** [Tool/Analysis name]
+> **Reason:** [Specific reason why the analysis could not be performed]
+> **Impact:** [What information is missing from the report as a result]
+```
+
+**Common reasons for skipped analyses:**
+
+| Situation | Example reason |
+|-----------|---------------|
+| Compilation fails | "SpotBugs and ArchUnit require compiled bytecode. Compilation failed with: [error summary]. Only source-code-based analyses were performed." |
+| Tool execution fails | "PMD execution failed with: [error]. The rulesets may be incompatible with the Java version used." |
+| Prerequisites missing | "JaCoCo requires agent instrumentation. Neither JaCoCo configuration in pom.xml nor manual agent attachment succeeded." |
+| Gradle without plugins | "SpotBugs is not configured as a Gradle plugin, and GAV-based invocation is not supported for Gradle projects." |
+| No test sources | "Test quality analysis skipped — no test sources found under src/test." |
+| No/insufficient Git history | "Git forensics skipped — repository has fewer than 10 commits, insufficient for meaningful trend analysis." |
+| Tool not available | "OWASP Dependency-Check skipped — NVD database download timed out after 5 minutes." |
+| JBang not installed | "ArchUnit bytecode analysis skipped — JBang is not installed and javac-based fallback failed. Martin/Lakos Metrics are based on source-code import analysis instead." |
+
+**Rules:**
+- Every section defined in the Report Structure must appear in the final report — either with results or with an explicit "Not analyzed" notice
+- If a partial analysis was possible (e.g., PMD succeeded but SpotBugs failed), clearly state which tools provided results and which did not
+- In the Scoring Matrix, mark categories affected by skipped analyses with "N/A — [reason]" instead of assigning a potentially misleading score
+- The Executive Summary must mention any significant analysis gaps
+
 ## Principles
 
 1. **Do NOT modify pom.xml** — everything via GAV coordinates
@@ -286,6 +317,7 @@ Pattern detection in source code:
 4. **Combine dimensions** — SpotBugs bug + hotspot + bus factor 1 = highest priority
 5. **Prioritize** — top 20% that cause 80% of the problems
 6. **Respect existing config** — mention in report if project has its own rulesets
+7. **Transparency over completeness** — a clearly documented gap is better than a silently incomplete report
 
 ## Gradle Fallback
 
