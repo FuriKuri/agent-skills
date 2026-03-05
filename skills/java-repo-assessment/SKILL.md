@@ -15,7 +15,7 @@ This skill executes external tools and compiles/tests code from the analyzed rep
 
 | Risk | Source | Severity |
 |------|--------|----------|
-| **Supply-Chain** | Maven plugins downloaded from Maven Central at runtime | Medium |
+| **Supply-Chain** | Maven plugins resolved from Maven Central during pre-cache phase (verified via checksums, execution runs offline) | Low |
 | **Untrusted Code Execution** | `mvn compile` executes annotation processors, build plugins; `mvn test` runs arbitrary test code | High |
 | **Data Ingestion** | XML reports, Git logs, and source code are parsed — potential prompt injection vectors | Low |
 
@@ -28,13 +28,15 @@ This skill executes external tools and compiles/tests code from the analyzed rep
 5. **Pinned plugin versions** — All Maven plugin versions in this skill are pinned to specific versions. Do not upgrade versions without verifying the artifact.
 6. **Verify artifact integrity** — Always use Maven's strict checksum verification (`-C` flag) for all Maven commands. This ensures that downloaded artifacts match their published checksums and have not been tampered with in transit.
 
-### Artifact Integrity & Supply-Chain Hardening
+### Artifact Integrity & Offline Execution
 
-All Maven commands in this skill download plugins from Maven Central at runtime. To mitigate supply-chain risks:
+This skill separates artifact download from execution to eliminate runtime supply-chain risk:
 
-1. **Always pass `-C` (strict checksums) to every `mvn` invocation.** This causes Maven to fail if an artifact's checksum does not match, preventing execution of tampered artifacts.
-2. **If available, use a local repository manager** (Nexus, Artifactory, or similar) by configuring `~/.m2/settings.xml` with a mirror. This avoids direct downloads from Maven Central and allows artifact approval policies.
-3. **Offline mode (`-o`)** — If all required plugins have been previously downloaded and cached in `~/.m2/repository`, pass `-o` to prevent any network access. This eliminates runtime download risk entirely.
+1. **Pre-cache phase (online, with verification):** All required Maven plugins are resolved and downloaded once in a dedicated step using `-C` (strict checksum verification). This is the **only** phase that contacts Maven Central.
+2. **Execution phase (offline):** All subsequent Maven commands run with `-o` (offline mode), preventing any network access. Plugins execute exclusively from the local cache (`~/.m2/repository`).
+3. **If available, use a local repository manager** (Nexus, Artifactory, or similar) by configuring `~/.m2/settings.xml` with a mirror. This replaces Maven Central entirely and allows artifact approval policies.
+
+This two-phase approach ensures that no code is downloaded and executed in the same step — download is verified first, execution happens offline.
 
 ### If Analyzing an Untrusted Repository
 
@@ -44,58 +46,58 @@ All Maven commands in this skill download plugins from Maven Central at runtime.
 
 ## Core Principle: No POM Modifications
 
-**The project's pom.xml is NEVER modified.** All Maven plugins are invoked via fully-qualified GAV coordinates with strict checksum verification:
+**The project's pom.xml is NEVER modified.** All Maven plugins are invoked via fully-qualified GAV coordinates in offline mode after pre-caching:
 
 ```bash
-mvn -C groupId:artifactId:version:goal -Dproperty=value
+mvn -C -o groupId:artifactId:version:goal -Dproperty=value
 ```
 
-The `-C` flag (strict checksums) ensures artifact integrity. Maven automatically resolves the plugin from Maven Central — no declaration in pom.xml required. This allows the analysis to be applied to any Maven project.
+The `-C` flag verifies artifact checksums, `-o` enforces offline execution (no network access). Plugins are pre-cached in a separate phase (see "Artifact Pre-Cache"). This allows the analysis to be applied to any Maven project without runtime downloads.
 
 ## Tool Reference: Fully-Qualified Maven Commands
 
 ### PMD (Source Code Analysis + Copy-Paste Detection)
 ```bash
 # PMD with bestpractices, design, errorprone, performance rulesets
-mvn -C org.apache.maven.plugins:maven-pmd-plugin:3.28.0:pmd \
+mvn -C -o org.apache.maven.plugins:maven-pmd-plugin:3.28.0:pmd \
   -Dpmd.rulesets=category/java/bestpractices.xml,category/java/design.xml,category/java/errorprone.xml,category/java/performance.xml
 
 # Copy-Paste Detection (CPD)
-mvn -C org.apache.maven.plugins:maven-pmd-plugin:3.28.0:cpd -Dpmd.minimumTokens=100
+mvn -C -o org.apache.maven.plugins:maven-pmd-plugin:3.28.0:cpd -Dpmd.minimumTokens=100
 ```
 Output: `target/pmd.xml`, `target/cpd.xml`
 
 ### SpotBugs (Bytecode Analysis, Bug Patterns)
 ```bash
 # Prerequisite: code must be compiled!
-mvn -C compile -q
+mvn -C -o compile -q
 
 # SpotBugs with maximum effort
-mvn -C com.github.spotbugs:spotbugs-maven-plugin:4.9.8.2:spotbugs \
+mvn -C -o com.github.spotbugs:spotbugs-maven-plugin:4.9.8.2:spotbugs \
   -Dspotbugs.effort=Max -Dspotbugs.threshold=Low
 ```
 Output: `target/spotbugsXml.xml`
 
 ### Checkstyle (Coding Standards)
 ```bash
-mvn -C org.apache.maven.plugins:maven-checkstyle-plugin:3.6.0:checkstyle \
+mvn -C -o org.apache.maven.plugins:maven-checkstyle-plugin:3.6.0:checkstyle \
   -Dcheckstyle.configLocation=google_checks.xml
 ```
 Output: `target/checkstyle-result.xml`
 
 ### Dependency Updates & Tree
 ```bash
-mvn -C org.codehaus.mojo:versions-maven-plugin:2.18.0:display-dependency-updates
-mvn -C org.codehaus.mojo:versions-maven-plugin:2.18.0:display-plugin-updates
-mvn -C org.apache.maven.plugins:maven-dependency-plugin:3.8.1:tree
+mvn -C -o org.codehaus.mojo:versions-maven-plugin:2.18.0:display-dependency-updates
+mvn -C -o org.codehaus.mojo:versions-maven-plugin:2.18.0:display-plugin-updates
+mvn -C -o org.apache.maven.plugins:maven-dependency-plugin:3.8.1:tree
 ```
 
 ### OWASP Dependency-Check (CVE Scan)
 ```bash
-mvn -C org.owasp:dependency-check-maven:11.1.1:check
+mvn -C -o org.owasp:dependency-check-maven:11.1.1:check
 ```
 Output: `target/dependency-check-report.html`, `target/dependency-check-report.xml`
-Note: First run downloads the NVD database (~300MB).
+Note: OWASP Dependency-Check requires the NVD database (~300MB). The pre-cache phase resolves the plugin, but the NVD database must be downloaded separately. If not already cached, run `mvn -C org.owasp:dependency-check-maven:11.1.1:update-only` during the pre-cache phase (online). If the NVD database is unavailable, skip this analysis and document it in the report.
 
 ### JaCoCo (Test Coverage) — Special Case
 
@@ -105,19 +107,19 @@ JaCoCo requires an agent for instrumentation. Three strategies:
 
 **1. Project already has JaCoCo configured (check pom.xml):**
 ```bash
-mvn -C test -q
-mvn -C org.jacoco:jacoco-maven-plugin:0.8.12:report
+mvn -C -o test -q
+mvn -C -o org.jacoco:jacoco-maven-plugin:0.8.12:report
 ```
 
 **2. Attach agent manually (without POM modification):**
 ```bash
-mvn -C org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
+mvn -C -o org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
   -Dartifact=org.jacoco:org.jacoco.agent:0.8.12:jar:runtime \
   -DoutputDirectory=/tmp/jacoco
 
-mvn -C test -DargLine="-javaagent:/tmp/jacoco/org.jacoco.agent-0.8.12-runtime.jar=destfile=target/jacoco.exec"
+mvn -C -o test -DargLine="-javaagent:/tmp/jacoco/org.jacoco.agent-0.8.12-runtime.jar=destfile=target/jacoco.exec"
 
-mvn -C org.jacoco:jacoco-maven-plugin:0.8.12:report -Djacoco.dataFile=target/jacoco.exec
+mvn -C -o org.jacoco:jacoco-maven-plugin:0.8.12:report -Djacoco.dataFile=target/jacoco.exec
 ```
 
 **3. No coverage available:** Skip and note in the report.
@@ -134,7 +136,7 @@ find src/test -name '*.java' | xargs wc -l 2>/dev/null | tail -1
 
 Analyzes compiled bytecode — more precise than import analysis in source code. Especially valuable when JDepend or other architecture plugins are not configured in the project. The JBang script `ArchUnitAnalysis.java` is located in the same directory as this SKILL.md.
 
-**Prerequisite:** Project must be compiled (`mvn -C compile -q`).
+**Prerequisite:** Project must be compiled (`mvn -C -o compile -q`).
 
 **Option 1: With JBang (preferred)**
 ```bash
@@ -149,11 +151,11 @@ jbang <skill-dir>/ArchUnitAnalysis.java target/classes com.example.myapp
 ```bash
 # Download dependencies via Maven (GAV, no POM required)
 ARCHUNIT_DEPS=/tmp/archunit-deps && mkdir -p $ARCHUNIT_DEPS
-mvn -C -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
+mvn -C -o -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
   -Dartifact=com.tngtech.archunit:archunit:1.4.1 -DoutputDirectory=$ARCHUNIT_DEPS
-mvn -C -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
+mvn -C -o -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
   -Dartifact=org.slf4j:slf4j-api:2.0.13 -DoutputDirectory=$ARCHUNIT_DEPS
-mvn -C -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
+mvn -C -o -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
   -Dartifact=org.slf4j:slf4j-nop:2.0.13 -DoutputDirectory=$ARCHUNIT_DEPS
 
 # Compile and run
@@ -205,23 +207,56 @@ This assessment is designed to be **thorough, not fast**. A comprehensive analys
 6. For Gradle: GAV commands do NOT work → see Gradle Fallback at the end
 7. **Estimate project size** (module count, LOC) and inform the user about expected analysis scope (see "Analysis Depth & Time Budget")
 
-### Phase 2: Compile & Tool Execution
+### Phase 2: Artifact Pre-Cache (Online)
+
+Before any analysis, resolve and download all required Maven plugins into the local cache. This is the **only step that contacts Maven Central**. All subsequent phases run offline.
+
+```bash
+# Pre-cache all analysis plugins with strict checksum verification
+mvn -C dependency:resolve-plugins \
+  org.apache.maven.plugins:maven-pmd-plugin:3.28.0:help \
+  com.github.spotbugs:spotbugs-maven-plugin:4.9.8.2:help \
+  org.apache.maven.plugins:maven-checkstyle-plugin:3.6.0:help \
+  org.codehaus.mojo:versions-maven-plugin:2.18.0:help \
+  org.apache.maven.plugins:maven-dependency-plugin:3.8.1:help \
+  org.owasp:dependency-check-maven:11.1.1:help \
+  org.jacoco:jacoco-maven-plugin:0.8.12:help \
+  -q
+
+# Pre-cache JaCoCo agent JAR (needed for manual instrumentation)
+mvn -C org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
+  -Dartifact=org.jacoco:org.jacoco.agent:0.8.12:jar:runtime \
+  -DoutputDirectory=/tmp/jacoco -q
+
+# Pre-cache ArchUnit dependencies (needed for bytecode analysis)
+ARCHUNIT_DEPS=/tmp/archunit-deps && mkdir -p $ARCHUNIT_DEPS
+mvn -C org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
+  -Dartifact=com.tngtech.archunit:archunit:1.4.1 -DoutputDirectory=$ARCHUNIT_DEPS -q
+mvn -C org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
+  -Dartifact=org.slf4j:slf4j-api:2.0.13 -DoutputDirectory=$ARCHUNIT_DEPS -q
+mvn -C org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
+  -Dartifact=org.slf4j:slf4j-nop:2.0.13 -DoutputDirectory=$ARCHUNIT_DEPS -q
+```
+
+If this step fails (e.g., network issues), stop and inform the user — do not proceed with partial plugin availability. All subsequent phases run exclusively from the local cache.
+
+### Phase 3: Compile & Tool Execution (Offline)
 
 **Before compiling, ask the user for confirmation:**
 > "This analysis requires compiling the project (`mvn compile`), which executes build plugins and annotation processors defined in the project's POM. Should I proceed? If not, I'll limit the analysis to source-code-based tools and Git forensics."
 
 ```bash
-mvn -C compile -q
+mvn -C -o compile -q
 ```
-Then execute all tools from the Tool Reference above sequentially. For multi-module projects, reports are located in the respective `target/` directory.
+Then execute all tools from the Tool Reference above sequentially with `-o` (offline mode). For multi-module projects, reports are located in the respective `target/` directory.
 
-### Phase 3: Static Analysis Results
+### Phase 4: Static Analysis Results
 Parse the XML reports. Do not summarize as a raw list, instead:
 - Group by category and severity
 - Focus on top 20 most critical findings
 - Each finding with file and line number
 
-### Phase 4: Architecture Metrics
+### Phase 5: Architecture Metrics
 
 **Preferred: ArchUnit script** (see Tool Reference above). If JBang is available, run `ArchUnitAnalysis.java`. The script provides Martin Metrics, Lakos Metrics, cycles, layer violations, and dependency graph directly from bytecode — **no plugin in the project required**.
 
@@ -254,7 +289,7 @@ Identify: **Zone of Pain** (low I, low A) and **Zone of Uselessness** (high I, h
 - Layer violations: automatically checked by ArchUnit; without ArchUnit check manually (Controller→Repository direct, Domain→Infrastructure)
 - Circular package dependencies: automatically checked by ArchUnit; without ArchUnit build graph from imports
 
-### Phase 5: Git History Forensics
+### Phase 6: Git History Forensics
 
 #### 5.1 Hotspots (Churn × Complexity)
 ```bash
@@ -301,7 +336,7 @@ for f in $(find src -name '*.java'); do
 done | sort
 ```
 
-### Phase 6: Performance Anti-Patterns
+### Phase 7: Performance Anti-Patterns
 
 Pattern detection in source code:
 - N+1: DB/API calls inside `for`/`while` loops
@@ -312,7 +347,7 @@ Pattern detection in source code:
 - `Pattern.compile()` in loops instead of `static final`
 - Eager loading in JPA (`FetchType.EAGER` or missing lazy configuration)
 
-### Phase 7: Test Quality
+### Phase 8: Test Quality
 - Test-to-code ratio (lines test / lines production)
 - Count test types: `@Test`, `@SpringBootTest`, `@Testcontainers`, `@DataJpaTest`
 - Hotspot files without coverage = highest risk
