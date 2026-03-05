@@ -162,15 +162,39 @@ Note: The `///usr/bin/env` and `//DEPS` lines are regular comments for `javac` �
 - Layer violation check (Presentation → Service → Persistence)
 - Module dependency graph
 
+## Analysis Depth & Time Budget
+
+This assessment is designed to be **thorough, not fast**. A comprehensive analysis of a large project may take significant time — this is expected and acceptable.
+
+**At the start of the analysis, estimate the project size and inform the user:**
+
+> "This is a [small / medium / large] project (~X modules, ~Y KLOC). A full assessment will take considerable time as it runs multiple static analysis tools, parses their reports in detail, and performs extensive Git history forensics. Should I proceed with the full analysis?"
+
+**Guidelines by project size:**
+
+| Size | Indicators | Expected behavior |
+|------|-----------|-------------------|
+| **Small** | Single module, < 20 KLOC | Run all phases, report should be comprehensive |
+| **Medium** | 2–10 modules, 20–100 KLOC | Run all phases. Git forensics may take longer — this is fine. Analyze all modules individually. |
+| **Large** | > 10 modules, > 100 KLOC | Warn the user that a full analysis will take extended time. Run all phases thoroughly. For Git forensics, process all files — do not cut corners by sampling. For multi-module projects, run tools per module. |
+
+**Key rules:**
+- **Never skip or abbreviate an analysis phase just to save time.** The value of this assessment comes from its completeness.
+- **Prefer depth over speed.** If a tool produces a large report, read and analyze it fully. Do not summarize after only scanning the first few entries.
+- **Process all modules** in multi-module projects — do not pick a "representative" subset.
+- **Parse full XML reports** — read the complete output, not just the first N lines. For very large reports (> 500 findings), group and prioritize in the report but still base the analysis on the full data.
+- **Git forensics scales with history** — large repositories with long histories produce more meaningful forensic data. Let the commands run to completion.
+
 ## Analysis Workflow
 
-### Phase 1: Project Discovery
+### Phase 1: Project Discovery & Scope Assessment
 1. Build system: Maven (`pom.xml`) or Gradle (`build.gradle`)?
 2. Java version (from `maven.compiler.source`/`target` or `java.version`)
 3. Module structure (multi-module? Which modules?)
 4. Framework(s): Spring Boot, Quarkus, Jakarta EE, etc.
 5. Already configured plugins? (PMD, SpotBugs, Checkstyle, JaCoCo in pom.xml)
 6. For Gradle: GAV commands do NOT work → see Gradle Fallback at the end
+7. **Estimate project size** (module count, LOC) and inform the user about expected analysis scope (see "Analysis Depth & Time Budget")
 
 ### Phase 2: Compile & Tool Execution
 
