@@ -22,3 +22,4 @@ Each skill resides in its own directory under `skills/`. The `SKILL.md` file con
 ## Existing Skills
 
 - `java-repo-assessment` — Comprehensive quality analysis of Java repositories (static analysis, architecture metrics, Git forensics)
+- `ipc-trigger` — Send prompts to other Claude Code sessions via tmux (local or remote via SSH)
